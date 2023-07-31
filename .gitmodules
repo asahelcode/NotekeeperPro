@@ -1,0 +1,6 @@
+[submodule "client-side"]
+	path = client-side
+	url = https://github.com/asahelcode/Note-Keeper.git
+[submodule "client"]
+	path = client
+	url = https://github.com/asahelcode/Note-Keeper.git
