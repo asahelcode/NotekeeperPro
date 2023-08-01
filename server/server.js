@@ -5,15 +5,26 @@ const cors = require("cors");
 const path = require("path");
 const PDFdocument = require("pdfkit");
 const fs = require("fs");
+const {google} = require("googleapis");
+const dotenv = require("dotenv");
 
-const port = 5000;
+dotenv.config({})
 
 const app = express();
+
+const port = process.env.PORT || 5000;
+
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI;
+const SCOPES = ['https://www.googleapis.com/auth/drive'];
+
+const auth = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
 app.use(bodyParser.json({limit: "10mb"}));
 app.use(bodyParser.urlencoded({limit: "10mb", extended: true}))
 
-app.use(cors());
+app.use(cors({origin: '*'}));
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -29,14 +40,11 @@ const upload = multer({
 });
 
 
-app.get("/", (req, res) => {
-    res.send("Hello World, welcome to the Universe of Note-Keeper");
-})
-
-app.post("/convert-to-pdf", upload.array('noteImages'), (req, res) => {
+ 
+app.post("/convertImageToPDF", upload.array('noteImages'), (req, res) => {
     const imageFiles = req.files;
     const pdfPath = path.join(__dirname, 'output.pdf');
-    const doc = new PDFdocument({size: "A4", margin: 50});
+    const doc = new PDFdocument({size: "A4", margin: 10});
 
     doc.pipe(fs.createWriteStream(pdfPath));
 
@@ -51,15 +59,14 @@ app.post("/convert-to-pdf", upload.array('noteImages'), (req, res) => {
 
     doc.end()
     
-    res.sendFile(pdfPath, () => {
-        fs.unlinkSync(pdfPath); // Delete the generated PDF file after sending it to the client
+  //clean up
+    fs.unlinkSync(pdfPath); // Delete the generated PDF file after sending it to the client
 
-        imageFiles.forEach((file) => {
-            fs.unlinkSync(file.path);
-        })
-    });
+    imageFiles.forEach((file) => {
+      fs.unlinkSync(file.path);
+    })
     
-    console.log(pdfPath);
+  //upload to Google drive
 })
 
 app.listen(port, () => {
