@@ -5,7 +5,8 @@ const cors = require("cors");
 const path = require("path");
 const PDFdocument = require("pdfkit");
 const fs = require("fs");
-const {google} = require("googleapis");
+const { google } = require("googleapis");
+const { createCanva, loadImage } = require("canvas");
 const dotenv = require("dotenv");
 
 dotenv.config({})
@@ -39,35 +40,79 @@ const upload = multer({
   },
 });
 
+async function uploadToDrive(pdfPath, noteName) { 
+  const drive = google.drive({version: 'v3', auth});
 
+  const fileMetadata = {
+    name: noteName,
+  };
+
+  const media = {
+    mimeType: 'application/pdf',
+    body: fs.createReadStream(pdfPath)
+  }
+
+  try {
+    const response = await drive.files.create({
+      resource: fileMetadata,
+      media: media,
+      fields: 'id'
+    });
+
+    console.log("Successfully created");
+  } catch (err) {
+    console.error("Error uploading file to Google Drive: ", err);
+  }
+}
  
-app.post("/convertImageToPDF", upload.array('noteImages'), (req, res) => {
-    const imageFiles = req.files;
-    const pdfPath = path.join(__dirname, 'output.pdf');
-    const doc = new PDFdocument({size: "A4", margin: 10});
+app.post("/convertImageToPDF", upload.array('noteImages'), async (req, res) => {
+  const imageFiles = req.files;
+  const pdfPath = path.join(__dirname, 'output.pdf');
+  const doc = new PDFdocument();
+  const accessToken = req.headers.authorization.split(' ')[1];
+  const noteName = req.query.name;
 
-    doc.pipe(fs.createWriteStream(pdfPath));
+  auth.setCredentials({ access_token: accessToken });
+  
+  console.log(imageFiles);
+  
+  
+  doc.pipe(fs.createWriteStream(pdfPath));
 
-    imageFiles.forEach((file) => {
-        doc.addPage();
-        doc.image(file.path, {
-            fit: [500, 500],
-            align: 'center',
-            valign: 'center'
-        })
+  imageFiles.forEach((file) => {
+    doc.image(file.path, {
+      fit: [500, 500],
+      align: 'center',
+      valign: 'center'
     })
+    .addPage();
+  })
 
-    doc.end()
-    
-  //clean up
-    fs.unlinkSync(pdfPath); // Delete the generated PDF file after sending it to the client
+  // Finalize the PDF and save it to the specified file path
+  doc.end();
+
+  console.log("Successfully created");
+
+  
+  try {
+    uploadToDrive(pdfPath, noteName).then(() => {
+      // Delete the generated PDF file after sending it to the client
+    res.sendFile(pdfPath, () => {
+        fs.unlinkSync(pdfPath);
 
     imageFiles.forEach((file) => {
       fs.unlinkSync(file.path);
     })
+    })
+  })
+  } catch (err) {
+    console.error("Error uploading file to Google Drive: ", err);
+  }
     
   //upload to Google drive
 })
+
+
 
 app.listen(port, () => {
     console.log("Server is running successfully");
